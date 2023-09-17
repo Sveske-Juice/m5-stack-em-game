@@ -1,6 +1,7 @@
 #include <M5StickCPlus.h>
 #include "FastLED.h"
 #include <vector>
+#include <unordered_map>
 #include <stdint.h>
 
 #define Neopixel_PIN    32
@@ -19,16 +20,64 @@
 #define SALAD_COL 0x12ba17
 #define OLIVE_COL 0x6f1d61
 #define MAYO_COL 0xeadf69
+#define UNOCCUPIED_COL 0x00
 
-enum GameState {
-    MENU,
-    PLAYING
+// Settings
+#define DELTA_TIME_MILLIS 250
+
+#define PLAYER_COUNT 2
+#define STACK_WIDTH 2
+
+std::unordered_map<uint8_t, int> layerToColor = {
+    {14, BUN_COL},
+    {13, KETCHUP_COL},
+    {12, MUSTARD_COL},
+    {11, BEEF_COL},
+    {10, CHEESE_COL},
+    {9, BURGER_SAUCE_COL},
+    {8, BACON_COL},
+    {7, SALAD_COL},
+    {6, OLIVE_COL},
+    {5, MAYO_COL},
+    {4, MAYO_COL},
+    {3, MAYO_COL},
+    {2, MAYO_COL},
+    {1, MAYO_COL},
+    {0, MAYO_COL}
 };
 
-// Store LEDs in array
+enum GameState {
+    // In this state while in menu
+    MENU,
+
+    // In this state when the game is waiting for the user to place the layer
+    // I.e the layer should shift left to right in this state
+    WAIT_ON_INPUT,
+};
+
+struct PlayerData {
+    // Stores all the tiles the player has a block placed.
+    // 1: a block is placed at the position
+    // 0: No block is placed at that position
+    // TODO: switch to use a bitmap since only 1bit of info is needed per point
+    uint8_t occupiedTiles[GRID_H][GRID_W];
+
+    // The layer this player has reached
+    uint8_t activeLayer = GRID_H - 1;
+};
+
+
+PlayerData playerInfos[PLAYER_COUNT];
+
+int activePlayerIdx = 0;
+
+// The index position of the head on the active layer
+// Used to keep track on the currently placing stack
+// in the WAIT_ON_INPUT state
+int stackWiggleHeadPos = 0;
+
 CRGB leds[NUM_LEDS];
-uint8_t gHue                              = 0;
-static TaskHandle_t FastLEDshowTaskHandle = 0;
+GameState gameState = GameState::WAIT_ON_INPUT;
 
 uint8_t grid[GRID_H][GRID_W];
 CRGB drawBuffer[GRID_H][GRID_W] = {
@@ -44,7 +93,6 @@ CRGB drawBuffer[GRID_H][GRID_W] = {
     {0xff0000, 0x0, 0xff0000, 0xff0000},
     {0xff0000, 0xff0000, 0x0, 0xff0000},
 };
-GameState gameState = GameState::PLAYING;
 
 void setup() {
     grid[0][0] = 27;
@@ -77,13 +125,12 @@ void setup() {
     // xTaskCreatePinnedToCore(FastLEDshowTask, "FastLEDshowTask", 2048, NULL, 2,
     //                         NULL, 0);
 
-    // init draw buffer to all red
+    // init draw buffer
     for (int i = 0; i < GRID_H; i++) {
         for (int j = 0; j < GRID_W; j++) {
-            // drawBuffer[i][j] = CRGB::White;
+            drawBuffer[i][j] = UNOCCUPIED_COL;
         }
     }
-    showDrawBuffer();
 }
 
 void loop() {
@@ -91,37 +138,47 @@ void loop() {
         case MENU:
             break;
 
-        case PLAYING:
-            playLoop();
+        case WAIT_ON_INPUT:
+            waitOnInput();
             break;
 
         default:
             break;
     }
+    showDrawBuffer();
+
+    // FIXME: subtract amount of time used in game loop
+    delay(DELTA_TIME_MILLIS);
 }
 
-void playLoop() {
+void waitOnInput() {
+    // TODO: check input
 
+    uint8_t layer = playerInfos[activePlayerIdx].activeLayer;
+
+    // Mod for wrapping the head around
+    stackWiggleHeadPos = ++stackWiggleHeadPos % GRID_W;
+    M5.Lcd.printf("%d, ", stackWiggleHeadPos);
+
+    // Clear all LEDS on layer
+    for (int i = 0; i < GRID_W; i++) {
+        drawBuffer[layer][i] = UNOCCUPIED_COL;
+    }
+
+    // Display the currently placing stack
+    for (int i = 0; i < STACK_WIDTH; i++) {
+        // if (i > GRID_W) break;
+        drawBuffer[layer][(stackWiggleHeadPos + i) % GRID_W] = layerToColor[layer];
+    }
 }
 
 void showDrawBuffer() {
     for (int row = 0; row < GRID_H; row++) {
         for (int col = 0; col < GRID_W; col++) {
             uint8_t idx = grid[row][col];
-            M5.Lcd.printf("%d, %d: idx: %d, color: %d", row, col, idx, drawBuffer[row][col]);
+            // M5.Lcd.printf("%d, %d: idx: %d, color: %d", row, col, idx, drawBuffer[row][col]);
             leds[idx] = drawBuffer[row][col];
         }
     }
     FastLED.show();
 }
-
-void FastLEDshowTask(void *pvParameters) {
-    for (;;) {
-        fill_rainbow(leds, NUM_LEDS, gHue, 7);  // rainbow effect
-        FastLED.show();  // must be executed for neopixel becoming effective
-        EVERY_N_MILLISECONDS(20) {
-            gHue++;
-        }
-    }
-}
-
