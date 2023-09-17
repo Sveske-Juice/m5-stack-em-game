@@ -79,6 +79,12 @@ int stackWiggleHeadPos = 0;
 CRGB leds[NUM_LEDS];
 GameState gameState = GameState::WAIT_ON_INPUT;
 
+// Bitmap representing if a button have been clicked within the last update tick
+// idx 001: Btn A
+// idx 010: Btn B
+// idx 100: Btn C (custom button)
+int inputBitmap = 0;
+
 uint8_t grid[GRID_H][GRID_W];
 CRGB drawBuffer[GRID_H][GRID_W] = {
     {0xff0000, 0x0, 0x0, 0x0},
@@ -93,6 +99,43 @@ CRGB drawBuffer[GRID_H][GRID_W] = {
     {0xff0000, 0x0, 0xff0000, 0xff0000},
     {0xff0000, 0xff0000, 0x0, 0xff0000},
 };
+
+void pollInput() {
+    // M5.Lcd.fillScreen(
+    //         BLACK);
+    // M5.Lcd.setCursor(0,0);
+    // M5.Lcd.printf("ch: %d\n", M5.BtnA.lastChange());
+    if (M5.BtnA.wasReleased())
+        inputBitmap |= 1;
+
+    if (M5.BtnB.wasReleased())
+        inputBitmap |= 1 << 1;
+
+    // TODO: check for custom btn
+}
+
+void gameLoop(void* params) {
+    for (;;) {
+        switch (gameState) {
+            case MENU:
+                break;
+
+            case WAIT_ON_INPUT:
+                waitOnInput();
+                break;
+
+            default:
+                break;
+        }
+        showDrawBuffer();
+
+        // Reset input from this tick - accumulate input events until next tick
+        inputBitmap = 0;
+
+        // FIXME: subtract time took to tick game
+        vTaskDelay(DELTA_TIME_MILLIS / portTICK_PERIOD_MS);
+    }
+}
 
 void setup() {
     grid[0][0] = 27;
@@ -115,8 +158,6 @@ void setup() {
     M5.Lcd.println("Stack' em'");
     M5.Lcd.setTextColor(WHITE);
     M5.Lcd.setCursor(15, 35);
-    M5.Lcd.println("Display");
-    M5.Lcd.setCursor(30, 55);
 
     // Initalize LED array
     FastLED.addLeds<WS2811, Neopixel_PIN, GRB>(leds, NUM_LEDS)
@@ -125,6 +166,7 @@ void setup() {
     // xTaskCreatePinnedToCore(FastLEDshowTask, "FastLEDshowTask", 2048, NULL, 2,
     //                         NULL, 0);
 
+    xTaskCreatePinnedToCore(gameLoop, "Game Loop", 4096, NULL, 1, NULL, 0);
     // init draw buffer
     for (int i = 0; i < GRID_H; i++) {
         for (int j = 0; j < GRID_W; j++) {
@@ -133,32 +175,23 @@ void setup() {
     }
 }
 
+int cyclesSinceUpdate = 0;
 void loop() {
-    switch (gameState) {
-        case MENU:
-            break;
-
-        case WAIT_ON_INPUT:
-            waitOnInput();
-            break;
-
-        default:
-            break;
-    }
-    showDrawBuffer();
-
-    // FIXME: subtract amount of time used in game loop
-    delay(DELTA_TIME_MILLIS);
+    // Update internal m5 stuff like input
+    M5.update();
+    pollInput();
 }
 
 void waitOnInput() {
-    // TODO: check input
+    if (inputBitmap & 1) {
+        M5.Lcd.printf("A");
+    }
 
     uint8_t layer = playerInfos[activePlayerIdx].activeLayer;
 
     // Mod for wrapping the head around
     stackWiggleHeadPos = ++stackWiggleHeadPos % GRID_W;
-    M5.Lcd.printf("%d, ", stackWiggleHeadPos);
+    // M5.Lcd.printf("%d, ", stackWiggleHeadPos);
 
     // Clear all LEDS on layer
     for (int i = 0; i < GRID_W; i++) {
