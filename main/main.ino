@@ -25,8 +25,9 @@
 #define UNOCCUPIED_COL 0x00
 #define LOSE_COL 0xff0000
 
-#define OCCUPIED 1
 #define UNOCCUPIED 0
+#define OCCUPIED 1
+#define FALLING_TILE 2
 
 #define KEY_A 1
 #define KEY_B 1 << 1
@@ -73,9 +74,9 @@ enum GameState {
 
 struct PlayerData {
     // Stores all the tiles the player has a block placed.
-    // 1: a block is placed at the position
-    // 0: No block is placed at that position
-    // TODO: switch to use a bitmap since only 1bit of info is needed per point
+    // UNOCCUPIED: No block is placed at that position
+    // OCCUPIED: a block is placed at the position
+    // FALLING_TILE: the block at that position is falling
     uint8_t occupiedTiles[GRID_H][GRID_W];
 
     // The working grid of occupied tiles. Will be written to occupiedTiles after
@@ -305,20 +306,30 @@ void tilesFalling() {
     // Traverse from top layer to bottom (not including) of grid
     for (int row = topLayer; row + 1 < GRID_H; row++) {
         for (int col = 0; col < GRID_W; col++) {
-            // Is this tile occupied? if yes value is 1 else 0
-            uint8_t occupied = playerInfos[activePlayerIdx].occupiedTiles[row][col];
-            if (occupied == UNOCCUPIED) continue;
-
+            // The state of this tile at (row, coll)
+            uint8_t tile = playerInfos[activePlayerIdx].occupiedTiles[row][col];
+            if (tile == UNOCCUPIED) continue;
 
             // Move the tile down if nothing below it - simulate it falling
             uint8_t tileBelow = playerInfos[activePlayerIdx].occupiedTiles[row + 1][col];
 
+            // No tile below - simulate falling
             if (tileBelow == UNOCCUPIED) {
                 movedTilesThisTick++;
-                playerInfos[activePlayerIdx].nextOccupiedTiles[row][col] = 0;
-                playerInfos[activePlayerIdx].nextOccupiedTiles[row + 1][col] = 1;
+                playerInfos[activePlayerIdx].nextOccupiedTiles[row][col] = UNOCCUPIED;
+                playerInfos[activePlayerIdx].nextOccupiedTiles[row + 1][col] = FALLING_TILE;
+            }
+            // The tile below is occupied - destroy the falling tile
+            else if (tile == FALLING_TILE){
+                playerInfos[activePlayerIdx].nextOccupiedTiles[row][col] = UNOCCUPIED;
             }
         }
+    }
+
+    // Clear falling tiles from bottom
+    for (int col = 0; col < GRID_W; col++) {
+        if (playerInfos[activePlayerIdx].occupiedTiles[GRID_H - 1][col] == FALLING_TILE)
+            playerInfos[activePlayerIdx].nextOccupiedTiles[GRID_H - 1][col] = UNOCCUPIED;
     }
 
     // No more tiles to move
