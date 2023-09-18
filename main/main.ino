@@ -3,6 +3,7 @@
 #include <vector>
 #include <unordered_map>
 #include <stdint.h>
+#include <cstring>
 
 #define Neopixel_PIN    32
 #define NUM_LEDS        90
@@ -20,7 +21,15 @@
 #define SALAD_COL 0x12ba17
 #define OLIVE_COL 0x6f1d61
 #define MAYO_COL 0xeadf69
+
 #define UNOCCUPIED_COL 0x00
+#define LOSE_COL 0xff0000
+
+#define OCCUPIED 1
+#define UNOCCUPIED 0
+
+#define KEY_A 1
+#define KEY_B 1 << 1
 
 // Settings
 #define DELTA_TIME_DEFAULT 250
@@ -58,6 +67,8 @@ enum GameState {
     // Right after a stack is placed this state is active for as long as
     // There are blocks that needs to fall to the ground
     TILES_FALLING,
+
+    LOSE,
 };
 
 struct PlayerData {
@@ -66,6 +77,10 @@ struct PlayerData {
     // 0: No block is placed at that position
     // TODO: switch to use a bitmap since only 1bit of info is needed per point
     uint8_t occupiedTiles[GRID_H][GRID_W];
+
+    // The working grid of occupied tiles. Will be written to occupiedTiles after
+    // every tick, too avoid interference when editing and reading in same tick
+    uint8_t nextOccupiedTiles[GRID_H][GRID_W];
 
     // The layer this player has reached
     uint8_t activeLayer = GRID_H - 1;
@@ -108,36 +123,57 @@ CRGB drawBuffer[GRID_H][GRID_W] = {
 };
 
 void pollInput() {
-    // M5.Lcd.fillScreen(
-    //         BLACK);
-    // M5.Lcd.setCursor(0,0);
-    // M5.Lcd.printf("ch: %d\n", M5.BtnA.lastChange());
     if (M5.BtnA.wasReleased())
-        inputBitmap |= 1;
+        inputBitmap |= KEY_A;
 
     if (M5.BtnB.wasReleased())
-        inputBitmap |= 1 << 1;
+        inputBitmap |= KEY_B;
 
     // TODO: check for custom btn
 }
+
+void writeOccupiedToDrawBuffer() {
+    for (int row = 0; row < GRID_H; row++) {
+        for (int col = 0; col < GRID_W; col++) {
+            drawBuffer[row][col] = layerToColor[row] * playerInfos[activePlayerIdx].occupiedTiles[row][col];
+        }
+    }
+}
+
 
 void gameLoop(void* params) {
     for (;;) {
         switch (gameState) {
             case MENU:
+                inMenu();
                 break;
 
             case WAIT_ON_INPUT:
                 waitOnInput();
                 break;
 
+            case TILES_FALLING:
+                tilesFalling();
+                break;
+
+            case LOSE:
+                losing();
+                break;
+
             default:
                 break;
         }
         showDrawBuffer();
+        writeOccupiedToDrawBuffer();
 
         // Reset input from this tick - accumulate input events until next tick
         inputBitmap = 0;
+
+        // Copy old working grid to active grid
+        std::memcpy(
+                playerInfos[activePlayerIdx].occupiedTiles,
+                playerInfos[activePlayerIdx].nextOccupiedTiles,
+                GRID_H * GRID_W);
 
         // FIXME: subtract time took to tick game
         int simSpeed = playerInfos[activePlayerIdx].simSpeed;
@@ -158,6 +194,7 @@ void setup() {
         grid[row][3] = grid[row - 1][3] + 1;
     }
 
+    // Setup m5 stuff, see https://docs.m5stack.com/en/api/stickc/system_m5stickc
     M5.begin();
     M5.Lcd.setRotation(3);
     M5.Lcd.setTextColor(YELLOW);
@@ -174,7 +211,7 @@ void setup() {
     // xTaskCreatePinnedToCore(FastLEDshowTask, "FastLEDshowTask", 2048, NULL, 2,
     //                         NULL, 0);
 
-    xTaskCreatePinnedToCore(gameLoop, "Game Loop", 4096, NULL, 1, NULL, 0);
+    xTaskCreatePinnedToCore(gameLoop, "Game Loop", 8128, NULL, 1, NULL, 0);
     // init draw buffer
     for (int i = 0; i < GRID_H; i++) {
         for (int j = 0; j < GRID_W; j++) {
@@ -183,21 +220,25 @@ void setup() {
     }
 }
 
-int cyclesSinceUpdate = 0;
 void loop() {
-    // Update internal m5 stuff like input
+    // Update key states
     M5.update();
     pollInput();
 }
 
-void waitOnInput() {
-    if (inputBitmap & 1) {
-        M5.Lcd.printf("A");
-        playerInfos[activePlayerIdx].activeLayer--;
-        playerInfos[activePlayerIdx].simSpeed *= SPEED_FACTOR;
-        gameState = GameState::TILES_FALLING;
-    }
+void inMenu() {
+    // TODO: show idle animation
 
+    M5.Lcd.fillScreen(BLACK);
+    M5.Lcd.setCursor(0, 0);
+    M5.Lcd.println("Click button to start game...");
+
+    if (inputBitmap & KEY_A) {
+        gameState = GameState::WAIT_ON_INPUT;
+    }
+}
+
+void waitOnInput() {
     uint8_t layer = playerInfos[activePlayerIdx].activeLayer;
 
     // Mod for wrapping the head around
@@ -211,8 +252,100 @@ void waitOnInput() {
 
     // Display the currently placing stack
     for (int i = 0; i < STACK_WIDTH; i++) {
-        // if (i > GRID_W) break;
         drawBuffer[layer][(stackWiggleHeadPos + i) % GRID_W] = layerToColor[layer];
+    }
+
+    // If button clicked then transition to next state
+    if (inputBitmap & KEY_A) {
+        M5.Lcd.printf("A");
+
+        // Check for losing
+        if (layer != GRID_H - 1) { // Don't fail on first click
+            int support = UNOCCUPIED; // How many tiles that are occupied below the placing stack
+            for (int i = 0; i < STACK_WIDTH; i++) {
+                support += playerInfos[activePlayerIdx]
+                    .occupiedTiles[layer + 1][(stackWiggleHeadPos + i) % GRID_W];
+            }
+
+            // No tiles under placed stack - player looses
+            if (support == UNOCCUPIED) {
+                Serial.printf("LOSE!\n");
+                M5.Lcd.printf("LOSE!\n");
+
+                gameState = GameState::LOSE;
+                return;
+            }
+        }
+
+        // Write the stack to the occupied tile grid
+        for (int i = 0; i < STACK_WIDTH; i++) {
+            playerInfos[activePlayerIdx]
+                .nextOccupiedTiles[layer][(stackWiggleHeadPos + i) % GRID_W] = 1;
+        }
+
+        gameState = GameState::TILES_FALLING;
+        playerInfos[activePlayerIdx].activeLayer--;
+        playerInfos[activePlayerIdx].simSpeed *= SPEED_FACTOR;
+    }
+}
+
+void tilesFalling() {
+    // No tiles can be placed above this layer
+    int topLayer = playerInfos[activePlayerIdx].activeLayer - 1;
+    int movedTilesThisTick = 0;
+
+    // for (int i = 0; i<GRID_H;i++){
+    //     for (int j = 0;j<GRID_W;j++){
+    //         Serial.print(playerInfos[activePlayerIdx].occupiedTiles[i][j]);
+    //     }
+    //     Serial.println();
+    // }
+    // Serial.println();
+
+    // Traverse from top layer to bottom (not including) of grid
+    for (int row = topLayer; row + 1 < GRID_H; row++) {
+        for (int col = 0; col < GRID_W; col++) {
+            // Is this tile occupied? if yes value is 1 else 0
+            uint8_t occupied = playerInfos[activePlayerIdx].occupiedTiles[row][col];
+            if (occupied == UNOCCUPIED) continue;
+
+
+            // Move the tile down if nothing below it - simulate it falling
+            uint8_t tileBelow = playerInfos[activePlayerIdx].occupiedTiles[row + 1][col];
+
+            if (tileBelow == UNOCCUPIED) {
+                movedTilesThisTick++;
+                playerInfos[activePlayerIdx].nextOccupiedTiles[row][col] = 0;
+                playerInfos[activePlayerIdx].nextOccupiedTiles[row + 1][col] = 1;
+            }
+        }
+    }
+
+    // No more tiles to move
+    if (movedTilesThisTick == 0)
+        gameState = GameState::WAIT_ON_INPUT;
+}
+
+void losing() {
+    for (int row = 0; row < GRID_H; row++) {
+        for (int col = 0; col < GRID_W; col++) {
+            drawBuffer[row][col] = LOSE_COL;
+        }
+    }
+
+    if (inputBitmap & KEY_A) {
+        // Reset values
+        for (int i = 0; i < PLAYER_COUNT; i++) {
+            std::memset(playerInfos[i].occupiedTiles, 0, GRID_H * GRID_W);
+            std::memset(playerInfos[i].nextOccupiedTiles, 0, GRID_H * GRID_W);
+            playerInfos[i].activeLayer = GRID_H - 1;
+            playerInfos[i].simSpeed = DELTA_TIME_DEFAULT;
+        }
+
+        activePlayerIdx = 0;
+        stackWiggleHeadPos = 0;
+
+        gameState = GameState::MENU;
     }
 }
 
