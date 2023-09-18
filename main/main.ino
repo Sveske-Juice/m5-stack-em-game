@@ -54,6 +54,10 @@ enum GameState {
     // In this state when the game is waiting for the user to place the layer
     // I.e the layer should shift left to right in this state
     WAIT_ON_INPUT,
+
+    // Right after a stack is placed this state is active for as long as
+    // There are blocks that needs to fall to the ground
+    TILES_FALLING,
 };
 
 struct PlayerData {
@@ -65,6 +69,8 @@ struct PlayerData {
 
     // The layer this player has reached
     uint8_t activeLayer = GRID_H - 1;
+
+    int simSpeed = DELTA_TIME_DEFAULT;
 };
 
 
@@ -85,7 +91,6 @@ GameState gameState = GameState::WAIT_ON_INPUT;
 // idx 010: Btn B
 // idx 100: Btn C (custom button)
 int inputBitmap = 0;
-int simSpeed = DELTA_TIME_DEFAULT;
 
 uint8_t grid[GRID_H][GRID_W];
 CRGB drawBuffer[GRID_H][GRID_W] = {
@@ -135,6 +140,7 @@ void gameLoop(void* params) {
         inputBitmap = 0;
 
         // FIXME: subtract time took to tick game
+        int simSpeed = playerInfos[activePlayerIdx].simSpeed;
         vTaskDelay(simSpeed / portTICK_PERIOD_MS);
     }
 }
@@ -188,7 +194,8 @@ void waitOnInput() {
     if (inputBitmap & 1) {
         M5.Lcd.printf("A");
         playerInfos[activePlayerIdx].activeLayer--;
-        simSpeed *= SPEED_FACTOR;
+        playerInfos[activePlayerIdx].simSpeed *= SPEED_FACTOR;
+        gameState = GameState::TILES_FALLING;
     }
 
     uint8_t layer = playerInfos[activePlayerIdx].activeLayer;
