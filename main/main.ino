@@ -23,7 +23,8 @@
 #define UNOCCUPIED_COL 0x00
 
 // Settings
-#define DELTA_TIME_MILLIS 250
+#define DELTA_TIME_DEFAULT 250
+#define SPEED_FACTOR 0.95
 
 #define PLAYER_COUNT 2
 #define STACK_WIDTH 2
@@ -84,6 +85,7 @@ GameState gameState = GameState::WAIT_ON_INPUT;
 // idx 010: Btn B
 // idx 100: Btn C (custom button)
 int inputBitmap = 0;
+int simSpeed = DELTA_TIME_DEFAULT;
 
 uint8_t grid[GRID_H][GRID_W];
 CRGB drawBuffer[GRID_H][GRID_W] = {
@@ -133,7 +135,7 @@ void gameLoop(void* params) {
         inputBitmap = 0;
 
         // FIXME: subtract time took to tick game
-        vTaskDelay(DELTA_TIME_MILLIS / portTICK_PERIOD_MS);
+        vTaskDelay(simSpeed / portTICK_PERIOD_MS);
     }
 }
 
@@ -162,7 +164,7 @@ void setup() {
     // Initalize LED array
     FastLED.addLeds<WS2811, Neopixel_PIN, GRB>(leds, NUM_LEDS)
         .setCorrection(TypicalLEDStrip);
-    FastLED.setBrightness(10);
+    FastLED.setBrightness(64);
     // xTaskCreatePinnedToCore(FastLEDshowTask, "FastLEDshowTask", 2048, NULL, 2,
     //                         NULL, 0);
 
@@ -185,6 +187,8 @@ void loop() {
 void waitOnInput() {
     if (inputBitmap & 1) {
         M5.Lcd.printf("A");
+        playerInfos[activePlayerIdx].activeLayer--;
+        simSpeed *= SPEED_FACTOR;
     }
 
     uint8_t layer = playerInfos[activePlayerIdx].activeLayer;
