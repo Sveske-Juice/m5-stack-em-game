@@ -37,7 +37,7 @@
 #define SPEED_FACTOR 0.95
 
 #define PLAYER_COUNT 2
-#define STACK_WIDTH 2
+#define STACK_WIDTH 1
 
 std::unordered_map<uint8_t, int> layerToColor = {
     {14, BUN_COL},
@@ -242,9 +242,10 @@ void inMenu() {
 void waitOnInput() {
     uint8_t layer = playerInfos[activePlayerIdx].activeLayer;
 
-    // Mod for wrapping the head around
-    stackWiggleHeadPos = ++stackWiggleHeadPos % GRID_W;
-    // M5.Lcd.printf("%d, ", stackWiggleHeadPos);
+    if (!(inputBitmap & KEY_A)) {
+        // Mod for wrapping the head around
+        stackWiggleHeadPos = ++stackWiggleHeadPos % GRID_W;
+    }
 
     // Clear all LEDS on layer
     for (int i = 0; i < GRID_W; i++) {
