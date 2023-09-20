@@ -334,8 +334,10 @@ void tilesFalling() {
     }
 
     // No more tiles to move
-    if (movedTilesThisTick == 0)
+    if (movedTilesThisTick == 0) {
+        activePlayerIdx = ++activePlayerIdx % PLAYER_COUNT;
         gameState = GameState::WAIT_ON_INPUT;
+    }
 }
 
 void losing() {
