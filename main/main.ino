@@ -37,6 +37,7 @@
 // Settings
 #define DELTA_TIME_DEFAULT 250
 #define DEATH_ANIMATION_DELAY 1000
+#define WIN_ANIMATION_DELAY 1000
 #define SPEED_FACTOR 0.95
 #define KEY_C_PIN 26
 
@@ -78,6 +79,9 @@ enum GameState {
 
     // When all players are dead
     GAMEOVER,
+
+    // A player won the game: show a win animation and go back to menu
+    WIN,
 };
 
 struct PlayerData {
@@ -175,6 +179,10 @@ void gameLoop(void* params) {
 
             case GAMEOVER:
                 gameOver();
+                break;
+
+            case WIN:
+                winning();
                 break;
 
             default:
@@ -300,6 +308,12 @@ void waitOnInput() {
     if ((inputBitmap & KEY_A) || (inputBitmap & KEY_C)) {
         M5.Lcd.printf("A");
 
+        // Check for win
+        if (layer == 0) {
+            gameState = GameState::WIN;
+            return;
+        }
+
         // Check for losing
         if (layer != GRID_H - 1) { // Don't fail on first click
             int support = UNOCCUPIED; // How many tiles that are occupied below the placing stack
@@ -412,19 +426,22 @@ void gameOver() {
     }
 
     showDrawBuffer();
-    vTaskDelay(DEATH_ANIMATE_DELAY);
+    vTaskDelay(DEATH_ANIMATION_DELAY);
+    reset();
 
-    // Reset values
-    for (int i = 0; i < PLAYER_COUNT; i++) {
-        std::memset(playerInfos[i].occupiedTiles, 0, GRID_H * GRID_W);
-        std::memset(playerInfos[i].nextOccupiedTiles, 0, GRID_H * GRID_W);
-        playerInfos[i].activeLayer = GRID_H - 1;
-        playerInfos[i].simSpeed = DELTA_TIME_DEFAULT;
-        playerInfos[i].lost = false;
+    gameState = GameState::MENU;
+}
+
+void winning() {
+    for (int row = 0; row < GRID_H; row++) {
+        for (int col = 0; col < GRID_W; col++) {
+            drawBuffer[row][col] = layerToColor[row];
+        }
     }
 
-    activePlayerIdx = 0;
-    stackWiggleHeadPos = 0;
+    showDrawBuffer();
+    vTaskDelay(WIN_ANIMATION_DELAY);
+    reset();
 
     gameState = GameState::MENU;
 }
@@ -438,6 +455,20 @@ void nextAlivePlayer() {
             return;
         }
     }
+}
+
+// Reset values
+void reset() {
+    for (int i = 0; i < PLAYER_COUNT; i++) {
+        std::memset(playerInfos[i].occupiedTiles, 0, GRID_H * GRID_W);
+        std::memset(playerInfos[i].nextOccupiedTiles, 0, GRID_H * GRID_W);
+        playerInfos[i].activeLayer = GRID_H - 1;
+        playerInfos[i].simSpeed = DELTA_TIME_DEFAULT;
+        playerInfos[i].lost = false;
+    }
+
+    activePlayerIdx = 0;
+    stackWiggleHeadPos = 0;
 }
 
 void showDrawBuffer() {
