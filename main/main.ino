@@ -411,21 +411,22 @@ void gameOver() {
         }
     }
 
-    if ((inputBitmap & KEY_A) || (inputBitmap & KEY_C)) {
-        // Reset values
-        for (int i = 0; i < PLAYER_COUNT; i++) {
-            std::memset(playerInfos[i].occupiedTiles, 0, GRID_H * GRID_W);
-            std::memset(playerInfos[i].nextOccupiedTiles, 0, GRID_H * GRID_W);
-            playerInfos[i].activeLayer = GRID_H - 1;
-            playerInfos[i].simSpeed = DELTA_TIME_DEFAULT;
-            playerInfos[i].lost = false;
-        }
+    showDrawBuffer();
+    vTaskDelay(DEATH_ANIMATE_DELAY);
 
-        activePlayerIdx = 0;
-        stackWiggleHeadPos = 0;
-
-        gameState = GameState::MENU;
+    // Reset values
+    for (int i = 0; i < PLAYER_COUNT; i++) {
+        std::memset(playerInfos[i].occupiedTiles, 0, GRID_H * GRID_W);
+        std::memset(playerInfos[i].nextOccupiedTiles, 0, GRID_H * GRID_W);
+        playerInfos[i].activeLayer = GRID_H - 1;
+        playerInfos[i].simSpeed = DELTA_TIME_DEFAULT;
+        playerInfos[i].lost = false;
     }
+
+    activePlayerIdx = 0;
+    stackWiggleHeadPos = 0;
+
+    gameState = GameState::MENU;
 }
 
 // Sets the activePlayerIdx to the next player that is alive
