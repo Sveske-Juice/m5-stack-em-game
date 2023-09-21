@@ -19,8 +19,9 @@
 #define BURGER_SAUCE_COL 0x534822
 #define BACON_COL 0xba1f1f
 #define SALAD_COL 0x12ba17
-#define OLIVE_COL 0x6f1d61
+#define ONION_COL 0x6f1d61
 #define MAYO_COL 0xeadf69
+#define BBQ_COL 0x3e2a17
 
 #define UNOCCUPIED_COL 0x00
 #define LOSE_COL 0xff0000
@@ -45,16 +46,16 @@ std::unordered_map<uint8_t, int> layerToColor = {
     {12, MUSTARD_COL},
     {11, BEEF_COL},
     {10, CHEESE_COL},
-    {9, BURGER_SAUCE_COL},
-    {8, BACON_COL},
-    {7, SALAD_COL},
-    {6, OLIVE_COL},
-    {5, MAYO_COL},
-    {4, MAYO_COL},
-    {3, MAYO_COL},
+    {9, BUN_COL},
+    {8, BBQ_COL},
+    {7, BEEF_COL},
+    {6, BACON_COL},
+    {5, SALAD_COL},
+    {4, KETCHUP_COL}, // tomato
+    {3, ONION_COL},
     {2, MAYO_COL},
-    {1, MAYO_COL},
-    {0, MAYO_COL}
+    {1, BURGER_SAUCE_COL},
+    {0, BUN_COL}
 };
 
 enum GameState {
@@ -100,7 +101,7 @@ int activePlayerIdx = 0;
 int stackWiggleHeadPos = 0;
 
 CRGB leds[NUM_LEDS];
-GameState gameState = GameState::WAIT_ON_INPUT;
+GameState gameState = GameState::MENU;
 
 // Bitmap representing if a button have been clicked within the last update tick
 // idx 001: Btn A
@@ -233,6 +234,26 @@ void inMenu() {
     M5.Lcd.fillScreen(BLACK);
     M5.Lcd.setCursor(0, 0);
     M5.Lcd.println("Click button to start game...");
+
+    CRGB menuBuffer[GRID_H][GRID_W] = {
+        {0x0, 0x0, 0xff0000, 0xff0000},
+        {0x0, 0x0, 0xff0000, 0xff0000},
+        {0x0, 0x0, 0x0, 0xff0000},
+        {},
+        {0x0, 0x0, 0x0, 0xff},
+        {0x0, 0x0, 0x0, 0xff},
+        {0x0, 0x0, 0xff, 0xff},
+        {},
+        {0x0, 0x0, 0x00ff00, 0x0},
+        {0x0, 0x00ff00, 0x00ff00, 0x00ff00},
+        {0x0, 0x00ff00, 0x0, 0x00ff00},
+        {},
+        {0x0, 0xffff00, 0x0, 0xffff00},
+        {0x0, 0x0, 0xffff00, 0x0},
+        {0x0, 0x0, 0xffff00, 0x0}
+    };
+
+    std::memcpy(drawBuffer, menuBuffer, GRID_H * GRID_W * sizeof(CRGB));
 
     if (inputBitmap & KEY_A) {
         gameState = GameState::WAIT_ON_INPUT;
