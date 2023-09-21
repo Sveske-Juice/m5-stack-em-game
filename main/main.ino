@@ -32,11 +32,13 @@
 
 #define KEY_A 1
 #define KEY_B 1 << 1
+#define KEY_C 1 << 2
 
 // Settings
 #define DELTA_TIME_DEFAULT 250
 #define DEATH_ANIMATION_DELAY 1000
 #define SPEED_FACTOR 0.95
+#define KEY_C_PIN 26
 
 #define PLAYER_COUNT 2
 #define STACK_WIDTH 1
@@ -138,7 +140,9 @@ void pollInput() {
     if (M5.BtnB.wasReleased())
         inputBitmap |= KEY_B;
 
-    // TODO: check for custom btn
+    // Custom button
+    if (digitalRead(KEY_C_PIN))
+        inputBitmap |= KEY_C;
 }
 
 void writeOccupiedToDrawBuffer() {
@@ -207,6 +211,8 @@ void setup() {
         grid[row][3] = grid[row - 1][3] + 1;
     }
 
+    pinMode(KEY_C_PIN, INPUT);
+
     // Setup m5 stuff, see https://docs.m5stack.com/en/api/stickc/system_m5stickc
     M5.begin();
     M5.Lcd.setRotation(3);
@@ -266,7 +272,7 @@ void inMenu() {
 
     std::memcpy(drawBuffer, menuBuffer, GRID_H * GRID_W * sizeof(CRGB));
 
-    if (inputBitmap & KEY_A) {
+    if ((inputBitmap & KEY_A) || (inputBitmap & KEY_C)) {
         gameState = GameState::WAIT_ON_INPUT;
     }
 }
@@ -274,7 +280,8 @@ void inMenu() {
 void waitOnInput() {
     uint8_t layer = playerInfos[activePlayerIdx].activeLayer;
 
-    if (!(inputBitmap & KEY_A)) {
+    bool keyPressed = (inputBitmap & KEY_A) || (inputBitmap & KEY_C);
+    if (!keyPressed) {
         // Mod for wrapping the head around
         stackWiggleHeadPos = ++stackWiggleHeadPos % GRID_W;
     }
@@ -290,7 +297,7 @@ void waitOnInput() {
     }
 
     // If button clicked then transition to next state
-    if (inputBitmap & KEY_A) {
+    if ((inputBitmap & KEY_A) || (inputBitmap & KEY_C)) {
         M5.Lcd.printf("A");
 
         // Check for losing
@@ -404,7 +411,7 @@ void gameOver() {
         }
     }
 
-    if (inputBitmap & KEY_A) {
+    if ((inputBitmap & KEY_A) || (inputBitmap & KEY_C)) {
         // Reset values
         for (int i = 0; i < PLAYER_COUNT; i++) {
             std::memset(playerInfos[i].occupiedTiles, 0, GRID_H * GRID_W);
