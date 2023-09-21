@@ -35,6 +35,7 @@
 
 // Settings
 #define DELTA_TIME_DEFAULT 250
+#define DEATH_ANIMATION_DELAY 1000
 #define SPEED_FACTOR 0.95
 
 #define PLAYER_COUNT 2
@@ -70,7 +71,11 @@ enum GameState {
     // There are blocks that needs to fall to the ground
     TILES_FALLING,
 
+    // A player loses but the game is not finished
     LOSE,
+
+    // When all players are dead
+    GAMEOVER,
 };
 
 struct PlayerData {
@@ -88,6 +93,8 @@ struct PlayerData {
     uint8_t activeLayer = GRID_H - 1;
 
     int simSpeed = DELTA_TIME_DEFAULT;
+
+    bool lost = false;
 };
 
 
@@ -159,7 +166,11 @@ void gameLoop(void* params) {
                 break;
 
             case LOSE:
-                losing();
+                loosing();
+                break;
+
+            case GAMEOVER:
+                gameOver();
                 break;
 
             default:
@@ -295,7 +306,20 @@ void waitOnInput() {
                 Serial.printf("LOSE!\n");
                 M5.Lcd.printf("LOSE!\n");
 
-                gameState = GameState::LOSE;
+                playerInfos[activePlayerIdx].lost = true;
+
+                // If all players haeve lost then go to lose screen
+                bool someoneAlive = false;
+                for (int i = 0; i < PLAYER_COUNT; i++) {
+                    someoneAlive |= !playerInfos[i].lost;
+                }
+
+                if (!someoneAlive) {
+                    gameState = GameState::GAMEOVER;
+                }
+                else {
+                    gameState = GameState::LOSE;
+                }
                 return;
             }
         }
@@ -356,12 +380,24 @@ void tilesFalling() {
 
     // No more tiles to move
     if (movedTilesThisTick == 0) {
-        activePlayerIdx = ++activePlayerIdx % PLAYER_COUNT;
+        nextAlivePlayer();
         gameState = GameState::WAIT_ON_INPUT;
     }
 }
 
-void losing() {
+void loosing() {
+    for (int row = 0; row < GRID_H; row++) {
+        for (int col = 0; col < GRID_W; col++) {
+            drawBuffer[row][col] = LOSE_COL;
+        }
+    }
+
+    showDrawBuffer();
+    vTaskDelay(DEATH_ANIMATION_DELAY);
+    gameState = GameState::TILES_FALLING;
+}
+
+void gameOver() {
     for (int row = 0; row < GRID_H; row++) {
         for (int col = 0; col < GRID_W; col++) {
             drawBuffer[row][col] = LOSE_COL;
@@ -375,12 +411,24 @@ void losing() {
             std::memset(playerInfos[i].nextOccupiedTiles, 0, GRID_H * GRID_W);
             playerInfos[i].activeLayer = GRID_H - 1;
             playerInfos[i].simSpeed = DELTA_TIME_DEFAULT;
+            playerInfos[i].lost = false;
         }
 
         activePlayerIdx = 0;
         stackWiggleHeadPos = 0;
 
         gameState = GameState::MENU;
+    }
+}
+
+// Sets the activePlayerIdx to the next player that is alive
+void nextAlivePlayer() {
+    for (int i = 1; i < PLAYER_COUNT; i++) {
+        int idx = (i + activePlayerIdx) % PLAYER_COUNT;
+        if (!playerInfos[idx].lost) {
+            activePlayerIdx = idx;
+            return;
+        }
     }
 }
 
