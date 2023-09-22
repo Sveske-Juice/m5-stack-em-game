@@ -309,7 +309,7 @@ void waitOnInput() {
         M5.Lcd.printf("A");
 
         // Check for win
-        if (layer == 0) {
+        if (layer == -1) {
             gameState = GameState::WIN;
             return;
         }
@@ -401,6 +401,7 @@ void tilesFalling() {
 
     // No more tiles to move
     if (movedTilesThisTick == 0) {
+        stackWiggleHeadPos++; // Avoid the stack to spawn the same postion as last
         nextAlivePlayer();
         gameState = GameState::WAIT_ON_INPUT;
     }
