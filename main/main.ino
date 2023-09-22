@@ -145,7 +145,7 @@ void pollInput() {
         inputBitmap |= KEY_B;
 
     // Custom button
-    if (digitalRead(KEY_C_PIN))
+    if (digitalRead(KEY_C_PIN) == LOW)
         inputBitmap |= KEY_C;
 }
 
