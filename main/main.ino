@@ -38,8 +38,8 @@
 #define DELTA_TIME_DEFAULT 250
 #define DEATH_ANIMATION_DELAY 1000
 #define WIN_ANIMATION_DELAY 1000
-#define SPEED_FACTOR 0.95
-#define KEY_C_PIN 26
+#define SPEED_FACTOR 0.93
+#define KEY_C_PIN 0
 
 #define PLAYER_COUNT 2
 #define STACK_WIDTH 1
@@ -238,7 +238,7 @@ void setup() {
     // xTaskCreatePinnedToCore(FastLEDshowTask, "FastLEDshowTask", 2048, NULL, 2,
     //                         NULL, 0);
 
-    xTaskCreatePinnedToCore(gameLoop, "Game Loop", 8128, NULL, 1, NULL, 0);
+    xTaskCreatePinnedToCore(gameLoop, "Game Loop", 8128, NULL, 1, NULL, CORE1);
     // init draw buffer
     for (int i = 0; i < GRID_H; i++) {
         for (int j = 0; j < GRID_W; j++) {
@@ -308,8 +308,10 @@ void waitOnInput() {
     if ((inputBitmap & KEY_A) || (inputBitmap & KEY_C)) {
         M5.Lcd.printf("A");
 
+        Serial.printf("layer: %d\n", layer);
         // Check for win
-        if (layer == -1) {
+        if (layer == 255) {
+            Serial.println("WIN");
             gameState = GameState::WIN;
             return;
         }
