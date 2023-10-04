@@ -122,7 +122,11 @@ GameState gameState = GameState::MENU;
 // idx 100: Btn C (custom button)
 int inputBitmap = 0;
 
+// 2D array which translates a pixel coordinate to the index of the LED to
+// light up in the physical LED grid. Ie. grid[1][3] will be the LED idx of
+// the LED representing the (1,3) pixel coordinate
 uint8_t grid[GRID_H][GRID_W];
+
 CRGB drawBuffer[GRID_H][GRID_W] = {
     {0xff0000, 0x0, 0x0, 0x0},
     {0xff0000, 0x0, 0x0, 0xff0000},
@@ -188,8 +192,8 @@ void gameLoop(void* params) {
             default:
                 break;
         }
-        showDrawBuffer();
         writeOccupiedToDrawBuffer();
+        showDrawBuffer();
 
         // Reset input from this tick - accumulate input events until next tick
         inputBitmap = 0;
@@ -207,11 +211,11 @@ void gameLoop(void* params) {
 }
 
 void setup() {
+    // Calculate pixel coordinate to LED index grid
     grid[0][0] = 27;
     grid[0][1] = 33;
     grid[0][2] = 69;
     grid[0][3] = 75;
-
     for (int row = 1; row < GRID_H; row++) {
         grid[row][0] = grid[row - 1][0] - 1;
         grid[row][1] = grid[row - 1][1] + 1;
@@ -219,6 +223,7 @@ void setup() {
         grid[row][3] = grid[row - 1][3] + 1;
     }
 
+    // Setup custom button
     pinMode(KEY_C_PIN, INPUT);
 
     // Setup m5 stuff, see https://docs.m5stack.com/en/api/stickc/system_m5stickc
@@ -227,7 +232,7 @@ void setup() {
     M5.Lcd.setTextColor(YELLOW);
     M5.Lcd.setTextSize(2);
     M5.Lcd.setCursor(20, 2);
-    M5.Lcd.println("Stack' em'");
+    M5.Lcd.println("Miku's burgeria");
     M5.Lcd.setTextColor(WHITE);
     M5.Lcd.setCursor(15, 35);
 
@@ -235,11 +240,11 @@ void setup() {
     FastLED.addLeds<WS2811, Neopixel_PIN, GRB>(leds, NUM_LEDS)
         .setCorrection(TypicalLEDStrip);
     FastLED.setBrightness(64);
-    // xTaskCreatePinnedToCore(FastLEDshowTask, "FastLEDshowTask", 2048, NULL, 2,
-    //                         NULL, 0);
 
+    // Register gameloop
     xTaskCreatePinnedToCore(gameLoop, "Game Loop", 8128, NULL, 1, NULL, CORE1);
-    // init draw buffer
+
+    // Init draw buffer
     for (int i = 0; i < GRID_H; i++) {
         for (int j = 0; j < GRID_W; j++) {
             drawBuffer[i][j] = UNOCCUPIED_COL;
@@ -364,14 +369,6 @@ void tilesFalling() {
     int topLayer = playerInfos[activePlayerIdx].activeLayer - 1;
     int movedTilesThisTick = 0;
 
-    // for (int i = 0; i<GRID_H;i++){
-    //     for (int j = 0;j<GRID_W;j++){
-    //         Serial.print(playerInfos[activePlayerIdx].occupiedTiles[i][j]);
-    //     }
-    //     Serial.println();
-    // }
-    // Serial.println();
-
     // Traverse from top layer to bottom (not including) of grid
     for (int row = topLayer; row + 1 < GRID_H; row++) {
         for (int col = 0; col < GRID_W; col++) {
@@ -460,7 +457,7 @@ void nextAlivePlayer() {
     }
 }
 
-// Reset values
+// Reset values to run game again
 void reset() {
     for (int i = 0; i < PLAYER_COUNT; i++) {
         std::memset(playerInfos[i].occupiedTiles, 0, GRID_H * GRID_W);
@@ -478,7 +475,6 @@ void showDrawBuffer() {
     for (int row = 0; row < GRID_H; row++) {
         for (int col = 0; col < GRID_W; col++) {
             uint8_t idx = grid[row][col];
-            // M5.Lcd.printf("%d, %d: idx: %d, color: %d", row, col, idx, drawBuffer[row][col]);
             leds[idx] = drawBuffer[row][col];
         }
     }
