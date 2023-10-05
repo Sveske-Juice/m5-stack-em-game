@@ -13,11 +13,11 @@ Stacker arcade game designed for LED strips positioned in a grid
 1. In arduino IDE under Tools->Board Select "M5Stick-C-Plus"
 2. Connect the M5 to the PC's USB port
 3. In arduino IDE under Tools->Port Select the USB port connected to the M5
-4. Click upload button which will compile and flash the M5
+4. Click upload button which will compile and flash the image to the M5
 
 ## Custom button
 1. Connect one wire to M5's ground (GND)
-2. Connect other wire to M5's G26 pin (specified by `KEY_C_PIN` in code)
+2. Connect other wire to M5's G0 pin (specified by `KEY_C_PIN` in code)
 
 See https://docs.m5stack.com/en/api/core/gpio for M5 pin name to arduino pin code reference.
 
@@ -31,4 +31,9 @@ See comments for other options
 
 # Usage
 
-Press the button to place the stack
+Press the A or custom button to place the burger piece.
+
+# MQTT
+`ddu4/gr2/click` - simulates a button click in game
+`ddu4/gr2/speed_increase` - increase the sim speed for the **current active player**
+`ddu4/gr2/speed_decrease` - decrease the sim speed for the **current active player**
