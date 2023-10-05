@@ -192,8 +192,9 @@ void gameLoop(void* params) {
             default:
                 break;
         }
-        writeOccupiedToDrawBuffer();
         showDrawBuffer();
+        writeOccupiedToDrawBuffer();
+        
 
         // Reset input from this tick - accumulate input events until next tick
         inputBitmap = 0;
@@ -242,7 +243,7 @@ void setup() {
     FastLED.setBrightness(64);
 
     // Register gameloop
-    xTaskCreatePinnedToCore(gameLoop, "Game Loop", 8128, NULL, 1, NULL, CORE1);
+    xTaskCreatePinnedToCore(gameLoop, "Game Loop", 8128, NULL, 1, NULL, 1);
 
     // Init draw buffer
     for (int i = 0; i < GRID_H; i++) {
