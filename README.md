@@ -32,3 +32,8 @@ See comments for other options
 # Usage
 
 Press the A or custom button to place the burger piece.
+
+# MQTT
+`ddu4/gr2/click` - simulates a button click in game
+`ddu4/gr2/speed_increase` - increase the sim speed for the **current active player**
+`ddu4/gr2/speed_decrease` - decrease the sim speed for the **current active player**
